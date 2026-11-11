@@ -5,7 +5,8 @@ export type Kopecks = number
  * Что операция значит для личных финансов.
  * - expense / refund — личный расход и его возврат (возврат уменьшает расходы, а не увеличивает доход)
  * - income — доход (кешбэк, зачисления)
- * - personIncoming — перевод от человека; доход это или нет, решает правило контрагента
+ * - personIncoming — перевод от человека без правила: ждёт решения
+ * - support — деньги от близких: не заработок, но и не проектные
  * - cashTopUp — пополнение карты наличными через терминал: перевод из своих наличных
  * - jar — пополнение и снятие «банки» Monobank: движение внутри своих денег
  * - transfer — перевод между своими счетами
@@ -16,6 +17,7 @@ export type OperationKind =
   | 'refund'
   | 'income'
   | 'personIncoming'
+  | 'support'
   | 'cashTopUp'
   | 'jar'
   | 'transfer'
@@ -55,4 +57,27 @@ export type ProjectWallet = {
   id: string
   /** Остаток проектных денег, который лежит на личных счетах или в наличных. */
   remainder: Kopecks
+}
+
+/**
+ * Правило контрагента: чем считать переводы от конкретного человека.
+ * Это личные данные — правила хранятся вместе с операциями, не в коде.
+ */
+export type CounterpartyRule = {
+  /** Имя отправителя, как в выписке после «Від: ». */
+  sender: string
+  as: 'project' | 'support' | 'income'
+}
+
+/** Как конверт получает деньги: фиксированной суммой или долей дохода. */
+export type Allocation = { type: 'fixed'; amount: Kopecks } | { type: 'percent'; percent: number }
+
+export type EnvelopePlan = {
+  id: string
+  name: string
+  kind: 'spend' | 'save'
+  allocation: Allocation
+  /** Категории операций, которые списываются из этого конверта. */
+  categories: string[]
+  paced: boolean
 }

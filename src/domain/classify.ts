@@ -1,4 +1,4 @@
-import type { OperationKind } from './types'
+import type { CounterpartyRule, OperationKind } from './types'
 
 type Raw = {
   description: string
@@ -31,4 +31,18 @@ export function classify(raw: Raw): OperationKind {
     return 'income'
   }
   return 'expense'
+}
+
+/** Имя отправителя из «Від: Имя Фамилия». */
+export function senderOf(description: string): string | null {
+  const match = /^Від:\s*(.+)$/i.exec(description.trim())
+  return match ? match[1].trim() : null
+}
+
+/** Переводы от людей без правила остаются personIncoming и ждут решения. */
+export function applyCounterpartyRule(kind: OperationKind, description: string, rules: CounterpartyRule[]): OperationKind {
+  if (kind !== 'personIncoming') return kind
+  const sender = senderOf(description)
+  const rule = rules.find((r) => r.sender.toLowerCase() === sender?.toLowerCase())
+  return rule ? rule.as : kind
 }

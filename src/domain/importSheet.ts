@@ -1,6 +1,6 @@
-import { classify } from './classify'
+import { applyCounterpartyRule, classify } from './classify'
 import { parseAmount } from './money'
-import type { Operation } from './types'
+import type { CounterpartyRule, Operation } from './types'
 
 /** Разбор CSV с кавычками и переносами внутри полей. */
 export function parseCsv(text: string): string[][] {
@@ -47,7 +47,7 @@ export function parseSheetDate(raw: string): Date {
 const COLUMNS = ['ID', 'Date and time', 'Description', 'MCC', 'Amount UAH', 'Account', 'Category', 'Subcategory', 'IsProject', 'IsTransfer']
 
 /** Импорт листа Transactions из старой Google Таблицы. Дубли по ID отбрасываются. */
-export function importSheet(text: string): Operation[] {
+export function importSheet(text: string, counterparties: CounterpartyRule[] = []): Operation[] {
   const [header, ...rows] = parseCsv(text)
   const index = COLUMNS.map((name) => {
     const at = header.indexOf(name)
@@ -70,7 +70,11 @@ export function importSheet(text: string): Operation[] {
       account,
       category,
       subcategory,
-      kind: classify({ description, mcc, amount, isProject: isProject === 'TRUE', isTransfer: isTransfer === 'TRUE' }),
+      kind: applyCounterpartyRule(
+        classify({ description, mcc, amount, isProject: isProject === 'TRUE', isTransfer: isTransfer === 'TRUE' }),
+        description,
+        counterparties,
+      ),
     })
   }
   return operations.sort((a, b) => b.at.getTime() - a.at.getTime())

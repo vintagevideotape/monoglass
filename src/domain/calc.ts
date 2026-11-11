@@ -34,15 +34,17 @@ export type MonthSummary = {
   /** Личные расходы за вычетом возвратов, положительным числом. */
   spent: Kopecks
   income: Kopecks
-  /** Переводы от людей — отдельно, пока не решено, доход ли это. */
+  /** Переводы от людей, для которых ещё нет правила. */
   personIncoming: Kopecks
+  /** Деньги от близких. */
+  support: Kopecks
   cashTopUps: Kopecks
   projectIn: Kopecks
   projectOut: Kopecks
   byKind: Record<OperationKind, Kopecks>
 }
 
-const KINDS: OperationKind[] = ['expense', 'refund', 'income', 'personIncoming', 'cashTopUp', 'jar', 'transfer', 'project']
+const KINDS: OperationKind[] = ['expense', 'refund', 'income', 'personIncoming', 'support', 'cashTopUp', 'jar', 'transfer', 'project']
 
 export function monthSummary(operations: Operation[], year: number, monthIndex: number): MonthSummary {
   const inMonth = operations.filter((op) => op.at.getFullYear() === year && op.at.getMonth() === monthIndex)
@@ -54,6 +56,7 @@ export function monthSummary(operations: Operation[], year: number, monthIndex: 
     spent: 0 - (byKind.expense + byKind.refund),
     income: byKind.income,
     personIncoming: byKind.personIncoming,
+    support: byKind.support,
     cashTopUps: byKind.cashTopUp,
     projectIn: sum(project.filter((op) => op.amount > 0).map((op) => op.amount)),
     projectOut: 0 - sum(project.filter((op) => op.amount < 0).map((op) => op.amount)),
