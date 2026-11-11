@@ -61,7 +61,7 @@ export const DEFAULT_INCOME = 4200000
 
 /** Стартовая раскладка. Всё здесь меняется на экране «Бюджет». */
 export const DEFAULT_PLANS: EnvelopePlan[] = [
-  { id: 'fixed', name: 'Фикс', kind: 'spend', allocation: { type: 'fixed', amount: 1200000 }, categories: ['Подписки и сервисы', 'Покупки и техника'], paced: false },
+  { id: 'fixed', name: 'Фикс', kind: 'spend', allocation: { type: 'fixed', amount: 1200000 }, categories: ['Подписки и сервисы', 'Покупки и техника', 'Связь', 'Жильё'], paced: false },
   { id: 'needs', name: 'Нужды', kind: 'spend', allocation: { type: 'percent', percent: 45 }, categories: ['Продукты', 'Здоровье', 'Транспорт', 'Питомцы'], paced: true },
   { id: 'fun', name: 'Баловство', kind: 'spend', allocation: { type: 'percent', percent: 20 }, categories: ['Кафе и рестораны', 'Алкоголь и напитки', 'Игры и развлечения'], paced: true },
   { id: 'cushion', name: 'Подушка', kind: 'save', allocation: { type: 'percent', percent: 20 }, categories: [], paced: false },

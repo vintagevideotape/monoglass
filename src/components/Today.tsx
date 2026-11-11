@@ -2,15 +2,33 @@ import type { CSSProperties } from 'react'
 import { demoAccounts, demoProject } from '../data/demo'
 import { dailyAllowance, daysInMonth, honestBalance, monthSummary } from '../domain/calc'
 import { sum } from '../domain/money'
+import { cashBalance, ownBalance } from '../domain/raw'
 import { dayStamp, money, monthName, sameDay } from '../lib/format'
 import { envelopeViews } from '../state/budget'
 import { useStore } from '../state/store'
+import type { Cloud } from '../state/store'
 import { OpRow } from './OpRow'
 
-function AccountsGroup({ hidden }: { hidden?: boolean }) {
+type AccountView = { id: string; label: string; balance: number; approx?: boolean }
+
+/** Счета из базы: карты без кредитного лимита, наличные; валюта пересчитана в гривну по курсу НБУ. */
+function cloudAccounts(cloud: Cloud): AccountView[] {
+  const feeder = cloud.accounts.find((account) => account.source === 'cash' && account.currency === 980 && !account.archived)?.id
+  const rate = (currency: number) => (currency === 980 ? 1 : currency === 840 ? cloud.fx?.USD : currency === 978 ? cloud.fx?.EUR : null)
+  return cloud.accounts
+    .filter((account) => !account.archived && (account.source === 'cash' || account.sync === 1))
+    .flatMap((account) => {
+      const own = account.source === 'cash' ? cashBalance(account, cloud.rows, account.id === feeder) : ownBalance(account)
+      const k = rate(account.currency)
+      if (!k) return []
+      return [{ id: account.id, label: account.name, balance: Math.round(own * k), approx: account.currency !== 980 }]
+    })
+}
+
+function AccountsGroup({ accounts, hidden }: { accounts: AccountView[]; hidden?: boolean }) {
   return (
     <div className="accounts-group" aria-hidden={hidden || undefined}>
-      {demoAccounts.map((account) => (
+      {accounts.map((account) => (
         <div className="account" key={account.id}>
           <span className="label">{account.label}</span>
           <span className="account-value">
@@ -24,8 +42,9 @@ function AccountsGroup({ hidden }: { hidden?: boolean }) {
 }
 
 export function Today() {
-  const { now, source, operations, plans, income } = useStore()
+  const { now, source, operations, plans, income, cloud } = useStore()
   const demo = source === 'demo'
+  const accounts = cloud ? cloudAccounts(cloud) : demo ? demoAccounts : []
   const summary = monthSummary(operations, now.getFullYear(), now.getMonth())
   const { views, pace } = envelopeViews(operations, plans, income, now)
 
@@ -35,9 +54,12 @@ export function Today() {
   const dayLimit = dailyAllowance(pacedLeft + spentToday, now)
 
   // Остатки счетов появятся после подключения банка; до тех пор на своих данных показываем расход месяца.
+  // Проектные кошельки ещё не заведены, поэтому в базе пока показываем сумму своих денег на счетах, без вычета проектных.
   const hero = demo
     ? { label: 'Честный баланс, ₴', value: honestBalance(demoAccounts, [demoProject]) }
-    : { label: `Расходы за ${monthName(now)}, ₴`, value: summary.spent }
+    : cloud
+      ? { label: 'На счетах и в наличных, ₴', value: sum(accounts.map((account) => account.balance)) }
+      : { label: `Расходы за ${monthName(now)}, ₴`, value: summary.spent }
   const project = demo
     ? { value: demoProject.remainder, note: `${demoProject.name} · остаток` }
     : { value: summary.projectOut - summary.projectIn, note: 'расход за месяц' }
@@ -53,11 +75,11 @@ export function Today() {
         <h1 className="hero-number">{money(hero.value)}</h1>
       </section>
 
-      {demo && (
+      {accounts.length > 0 && (
         <section className="accounts glass" aria-label="Счета">
           <div className="accounts-track">
-            <AccountsGroup />
-            <AccountsGroup hidden />
+            <AccountsGroup accounts={accounts} />
+            <AccountsGroup accounts={accounts} hidden />
           </div>
         </section>
       )}

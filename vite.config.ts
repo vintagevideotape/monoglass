@@ -6,4 +6,6 @@ import { viteSingleFile } from 'vite-plugin-singlefile'
 export default defineConfig(({ mode }) => ({
   plugins: [react(), ...(mode === 'single' ? [viteSingleFile()] : [])],
   build: { outDir: mode === 'single' ? 'dist-single' : 'dist' },
+  // `npm run dev` + `npm run dev:api`: интерфейс ходит в локальный воркер.
+  server: { proxy: { '/api': 'http://127.0.0.1:8787' } },
 }))

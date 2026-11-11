@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Budget } from './components/Budget'
+import { Data } from './components/Data'
 import { Lava } from './components/Lava'
 import { Nav } from './components/Nav'
 import type { Screen } from './components/Nav'
@@ -11,7 +12,7 @@ import { StoreProvider } from './state/store'
 
 function screenFromHash(): Screen {
   const name = window.location.hash.replace('#', '')
-  return name === 'ops' || name === 'budget' ? name : 'today'
+  return name === 'ops' || name === 'budget' || name === 'data' ? name : 'today'
 }
 
 export default function App() {
@@ -41,6 +42,7 @@ export default function App() {
         {screen === 'today' && <Today />}
         {screen === 'ops' && <Ops />}
         {screen === 'budget' && <Budget />}
+        {screen === 'data' && <Data />}
         <PerfPanel lava={lava} glass={glass} onLava={setLava} onGlass={setGlass} />
       </div>
     </StoreProvider>

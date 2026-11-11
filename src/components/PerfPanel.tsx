@@ -64,7 +64,7 @@ export function PerfPanel({ lava, glass, onLava, onGlass }: Props) {
   return (
     <aside className="perf glass" aria-label="Данные и проверка плавности">
       <button type="button" className="perf-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <span>{source === 'demo' ? 'Демо' : 'Мои данные'}</span>
+        <span>{source === 'demo' ? 'Демо' : source === 'cloud' ? 'База' : 'Мои данные'}</span>
         <span className="perf-min">FPS {fps.avg || '…'}</span>
       </button>
       {open && (

@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "monoglass",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-01",
+  // Один воркер отдаёт и приложение, и API: один адрес, один вход.
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  // База создаётся в аккаунте владельца при первом `wrangler deploy`.
+  "d1_databases": [{ "binding": "DB", "database_name": "monoglass", "migrations_dir": "migrations" }],
+  // Раз в две минуты — один запрос к Monobank (лимит банка: один запрос в минуту).
+  "triggers": { "crons": ["*/2 * * * *"] },
+  "preview_urls": false,
+  "vars": { "BACKFILL_DAYS": "400" }
+  // Секреты задаются командой `wrangler secret put`, в репозиторий не попадают:
+  // MONO_TOKEN, TEAM_DOMAIN, POLICY_AUD.
+}

@@ -1,4 +1,4 @@
-export type Screen = 'today' | 'ops' | 'budget'
+export type Screen = 'today' | 'ops' | 'budget' | 'data'
 
 const TABS: { id: string; label: string; short: string; ready: boolean }[] = [
   { id: 'today', label: 'Сегодня', short: 'Сегодня', ready: true },
@@ -28,12 +28,13 @@ export function Nav({ screen }: { screen: Screen }) {
           ),
         )}
       </div>
-      <button type="button" className="nav-add" aria-label="Добавить операцию" disabled title="Появится вместе с ручным вводом">
-        <span className="nav-add-label">Добавить операцию</span>
+      {/* Ручной ввод, наличные, регулярные платежи и синхронизация живут на экране «Данные». */}
+      <a href="#data" className="nav-add" aria-label="Данные и ручной ввод" aria-current={screen === 'data' ? 'page' : undefined}>
+        <span className="nav-add-label">Данные и ввод</span>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" aria-hidden="true">
           <path d="M12 4v16M4 12h16" />
         </svg>
-      </button>
+      </a>
     </nav>
   )
 }

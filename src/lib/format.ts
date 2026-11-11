@@ -29,3 +29,9 @@ export function clock(date: Date): string {
 export function sameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
+
+/** Unix-секунды → «11.11 17:02» по времени устройства. */
+export function stamp(epoch: number): string {
+  const date = new Date(epoch * 1000)
+  return `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')} ${clock(date)}`
+}
