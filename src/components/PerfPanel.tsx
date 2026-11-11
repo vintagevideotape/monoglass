@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useStore } from '../state/store'
 
 export type LavaMode = 'flow' | 'frozen' | 'off'
 export type GlassMode = 'blur' | 'flat'
@@ -51,16 +52,42 @@ const GLASS: { id: GlassMode; label: string }[] = [
 
 export function PerfPanel({ lava, glass, onLava, onGlass }: Props) {
   const [open, setOpen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const fps = useFps()
+  const { source, operations, importCsv, clearData } = useStore()
+
+  const onFile = async (file: File | undefined) => {
+    if (!file) return
+    setError(importCsv(await file.text()))
+  }
 
   return (
-    <aside className="perf glass" aria-label="Проверка плавности">
+    <aside className="perf glass" aria-label="Данные и проверка плавности">
       <button type="button" className="perf-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <span>FPS {fps.avg || '…'}</span>
-        <span className="perf-min">мин {fps.min || '…'}</span>
+        <span>{source === 'demo' ? 'Демо' : 'Мои данные'}</span>
+        <span className="perf-min">FPS {fps.avg || '…'}</span>
       </button>
       {open && (
         <div className="perf-body">
+          <div className="perf-row">
+            <span className="label">Данные · {operations.length} операций</span>
+            <div className="perf-seg">
+              <label className="perf-file">
+                Загрузить CSV
+                <input type="file" accept=".csv,text/csv" onChange={(event) => void onFile(event.target.files?.[0])} />
+              </label>
+              {source === 'mine' && (
+                <button type="button" onClick={clearData}>
+                  Удалить
+                </button>
+              )}
+            </div>
+            <span className="perf-note">Файл остаётся в этом браузере и никуда не отправляется.</span>
+            {error && <span className="perf-note perf-error">{error}</span>}
+          </div>
+          <div className="perf-row">
+            <span className="label">Плавность · мин {fps.min || '…'} FPS</span>
+          </div>
           <div className="perf-row">
             <span className="label">Капли</span>
             <div className="perf-seg">

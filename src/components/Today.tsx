@@ -1,39 +1,21 @@
 import type { CSSProperties } from 'react'
-import { accounts, dailyLimit, envelopes, operations, project, today } from '../data/mock'
-import type { Envelope } from '../data/mock'
-import { dayStamp, daysInMonth, money } from '../lib/format'
-
-const dayOfMonth = today.getDate()
-const monthLength = daysInMonth(today)
-/** Доля месяца, прошедшая к сегодняшнему дню: с ней сравниваем расход конвертов. */
-const pace = dayOfMonth / monthLength
-
-const honestBalance = accounts.reduce((sum, account) => sum + account.amount, 0)
-const spentToday = operations.filter((op) => op.personal).reduce((sum, op) => sum - op.amount, 0)
-const dayTotal = operations.reduce((sum, op) => sum + op.amount, 0)
-
-/** Запас, в пределах которого опережение темпа не считается проблемой (10 п.п. лимита). */
-const PACE_TOLERANCE = 0.1
-
-function isAhead(envelope: Envelope): boolean {
-  return envelope.paced && envelope.used / envelope.limit > pace + PACE_TOLERANCE
-}
-
-function envelopeValue(envelope: Envelope): string {
-  return envelope.kind === 'save'
-    ? money(envelope.used, { sign: true })
-    : money(envelope.limit - envelope.used)
-}
+import { demoAccounts, demoProject } from '../data/demo'
+import { dailyAllowance, daysInMonth, honestBalance, monthSummary } from '../domain/calc'
+import { sum } from '../domain/money'
+import { dayStamp, money, monthName, sameDay } from '../lib/format'
+import { envelopeViews } from '../state/budget'
+import { useStore } from '../state/store'
+import { OpRow } from './OpRow'
 
 function AccountsGroup({ hidden }: { hidden?: boolean }) {
   return (
     <div className="accounts-group" aria-hidden={hidden || undefined}>
-      {accounts.map((account) => (
+      {demoAccounts.map((account) => (
         <div className="account" key={account.id}>
           <span className="label">{account.label}</span>
           <span className="account-value">
             {account.approx ? '≈ ' : ''}
-            {money(account.amount)}
+            {money(account.balance)}
           </span>
         </div>
       ))}
@@ -42,35 +24,55 @@ function AccountsGroup({ hidden }: { hidden?: boolean }) {
 }
 
 export function Today() {
+  const { now, source, operations, plans, income } = useStore()
+  const demo = source === 'demo'
+  const summary = monthSummary(operations, now.getFullYear(), now.getMonth())
+  const { views, pace } = envelopeViews(operations, plans, income, now)
+
+  const todayOps = operations.filter((op) => sameDay(op.at, now))
+  const spentToday = 0 - sum(todayOps.filter((op) => op.kind === 'expense' || op.kind === 'refund').map((op) => op.amount))
+  const pacedLeft = sum(views.filter((v) => v.kind === 'spend' && v.paced).map((v) => v.limit - v.used))
+  const dayLimit = dailyAllowance(pacedLeft + spentToday, now)
+
+  // Остатки счетов появятся после подключения банка; до тех пор на своих данных показываем расход месяца.
+  const hero = demo
+    ? { label: 'Честный баланс, ₴', value: honestBalance(demoAccounts, [demoProject]) }
+    : { label: `Расходы за ${monthName(now)}, ₴`, value: summary.spent }
+  const project = demo
+    ? { value: demoProject.remainder, note: `${demoProject.name} · остаток` }
+    : { value: summary.projectOut - summary.projectIn, note: 'расход за месяц' }
+
   return (
-    <main className="today">
+    <main className="screen">
       <header className="meta label">
-        {dayStamp(today)} · ДЕНЬ {dayOfMonth}/{monthLength}
+        {dayStamp(now)} · ДЕНЬ {now.getDate()}/{daysInMonth(now)}
       </header>
 
       <section className="hero">
-        <div className="label">Честный баланс, ₴</div>
-        <h1 className="hero-number">{money(honestBalance)}</h1>
+        <div className="label">{hero.label}</div>
+        <h1 className="hero-number">{money(hero.value)}</h1>
       </section>
 
-      <section className="accounts glass" aria-label="Счета">
-        <div className="accounts-track">
-          <AccountsGroup />
-          <AccountsGroup hidden />
-        </div>
-      </section>
+      {demo && (
+        <section className="accounts glass" aria-label="Счета">
+          <div className="accounts-track">
+            <AccountsGroup />
+            <AccountsGroup hidden />
+          </div>
+        </section>
+      )}
 
       <div className="widgets">
         <div className="pair">
           <section className="card glass">
             <div className="label">На сегодня</div>
-            <div className="card-number">{money(dailyLimit - spentToday)}</div>
-            <div className="muted">осталось из {money(dailyLimit)} ₴</div>
+            <div className="card-number">{money(dayLimit - spentToday)}</div>
+            <div className="muted">осталось из {money(dayLimit)} ₴</div>
           </section>
           <section className="card glass card-project">
             <div className="label">Проектные</div>
-            <div className="card-number card-number-small">{money(project.balance)}</div>
-            <div className="muted">{project.name} · остаток</div>
+            <div className="card-number card-number-small">{money(project.value)}</div>
+            <div className="muted">{project.note}</div>
           </section>
         </div>
 
@@ -82,28 +84,24 @@ export function Today() {
               Темп месяца
             </span>
           </div>
-          <div className="capsules" style={{ '--pace': pace } as CSSProperties}>
-            {envelopes.map((envelope, index) => (
-              <div className="capsule-cell" key={envelope.id}>
-                <div
-                  className="capsule"
-                  role="img"
-                  aria-label={`${envelope.name}: ${Math.round((envelope.used / envelope.limit) * 100)}%`}
-                >
+          <div className="capsules" style={{ '--pace': pace, '--count': views.length } as CSSProperties}>
+            {views.map((view, index) => (
+              <div className="capsule-cell" key={view.id}>
+                <div className="capsule" role="img" aria-label={`${view.name}: ${Math.round(view.share * 100)}%`}>
                   <div
-                    className={isAhead(envelope) ? 'capsule-fill ahead' : 'capsule-fill'}
-                    style={{ height: `${(envelope.used / envelope.limit) * 100}%`, animationDelay: `${index * 80}ms` }}
+                    className={view.ahead ? 'capsule-fill ahead' : 'capsule-fill'}
+                    style={{ height: `${view.share * 100}%`, animationDelay: `${index * 80}ms` }}
                   />
                 </div>
               </div>
             ))}
             <div className="pace-line" aria-hidden="true" />
           </div>
-          <div className="capsule-labels">
-            {envelopes.map((envelope) => (
-              <div key={envelope.id}>
-                <div className="capsule-name">{envelope.name}</div>
-                <div className="capsule-value">{envelopeValue(envelope)}</div>
+          <div className="capsule-labels" style={{ '--count': views.length } as CSSProperties}>
+            {views.map((view) => (
+              <div key={view.id}>
+                <div className="capsule-name">{view.name}</div>
+                <div className="capsule-value">{money(view.limit - view.used)}</div>
               </div>
             ))}
           </div>
@@ -112,20 +110,17 @@ export function Today() {
         <section className="card glass ops">
           <div className="card-head label">
             <h2>Операции за день</h2>
-            <span>{money(dayTotal)} ₴</span>
+            <span>{money(sum(todayOps.map((op) => op.amount)))} ₴</span>
           </div>
-          <ul className="op-list">
-            {operations.map((op) => (
-              <li className={op.personal ? 'op' : 'op op-dim'} key={op.id}>
-                <span className="op-time">{op.time}</span>
-                <span className="op-main">
-                  <span className="op-title">{op.title}</span>
-                  <span className="muted">{op.note}</span>
-                </span>
-                <span className="op-amount">{money(op.amount)}</span>
-              </li>
-            ))}
-          </ul>
+          {todayOps.length === 0 ? (
+            <p className="muted empty">Сегодня операций нет</p>
+          ) : (
+            <ul className="op-list">
+              {todayOps.map((op) => (
+                <OpRow key={op.id} op={op} />
+              ))}
+            </ul>
+          )}
         </section>
       </div>
     </main>

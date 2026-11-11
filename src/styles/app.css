@@ -173,7 +173,7 @@ h2 {
   padding: calc(env(safe-area-inset-top) + 12px) var(--pad-page) calc(env(safe-area-inset-bottom) + 108px);
 }
 
-.today {
+.screen {
   position: relative;
   z-index: 1;
   display: flex;
@@ -321,7 +321,7 @@ h2 {
 .capsules {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--count, 5), minmax(0, 1fr));
   gap: 8px;
   height: 96px;
 }
@@ -364,7 +364,7 @@ h2 {
 
 .capsule-labels {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--count, 5), minmax(0, 1fr));
   gap: 8px;
   text-align: center;
 }
@@ -470,6 +470,11 @@ h2 {
 }
 
 .nav-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  text-decoration: none;
   height: 48px;
   border-radius: 24px;
   font-family: var(--font-mono);
@@ -494,6 +499,227 @@ h2 {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* ---------- Операции и бюджет ---------- */
+
+.hero-right {
+  align-items: flex-end;
+}
+
+.empty {
+  margin: 0;
+  padding: 12px 0;
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 0 calc(-1 * var(--pad-page));
+  padding: 0 var(--pad-page);
+  scrollbar-width: none;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  height: 44px;
+  padding: 0 16px;
+  flex-shrink: 0;
+  border-radius: 22px;
+}
+
+.chip[aria-pressed='true'],
+[data-glass='flat'] .chip[aria-pressed='true'] {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 700;
+}
+
+.day-list,
+.envelope-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.plan {
+  border-radius: var(--radius-panel);
+  padding: 12px var(--pad-panel);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.plan-rest {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-muted);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-inline {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.field input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 1px solid var(--outline);
+  background: rgba(10, 10, 11, 0.6);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.field-inline input {
+  width: 150px;
+  text-align: right;
+}
+
+.field input:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.notice {
+  margin: 0;
+  padding: 12px var(--pad-panel);
+  border-radius: 14px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.notice-soft {
+  background: rgba(10, 10, 11, 0.84);
+  color: var(--text);
+  border: 1px dashed rgba(255, 255, 255, 0.45);
+  font-weight: 400;
+}
+
+.envelope {
+  gap: 10px;
+}
+
+.envelope-head,
+.envelope-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.envelope-name {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.envelope-sum {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tube {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  border: 1px solid var(--outline);
+}
+
+.tube-fill {
+  height: 100%;
+  border-radius: 7px;
+  background: var(--text);
+  transform-origin: left;
+  animation: grow 800ms var(--ease-out) both;
+}
+
+.tube-fill.ahead {
+  background: var(--accent);
+}
+
+.tube-pace {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 2px;
+  background: #fff;
+  mix-blend-mode: difference;
+}
+
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.link {
+  min-height: 44px;
+  margin: -12px 0;
+  flex-shrink: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.envelope-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--divider);
+}
+
+.envelope-edit p {
+  margin: 0;
+}
+
+.seg {
+  display: flex;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.seg button {
+  flex: 1 1 0;
+  height: 44px;
+  border-radius: 22px;
+  border: 1px solid var(--glass-border);
+}
+
+.seg button[aria-pressed='true'] {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 700;
+}
+
+.nav-tab-off {
+  opacity: 0.45;
+}
+
+.nav-add:disabled {
+  cursor: default;
 }
 
 /* ---------- Панель проверки ---------- */
@@ -540,8 +766,47 @@ h2 {
   gap: 4px;
 }
 
-.perf-seg button {
+.perf-file input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.perf-file:focus-within {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.perf-note {
+  max-width: 240px;
+  color: var(--text-muted);
+  font-family: var(--font-text);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.perf-error {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.perf-seg button,
+.perf-file {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.perf-seg button,
+.perf-file {
   height: 44px;
+  padding: 0 12px;
+  border-radius: 22px;
+  border: 1px solid var(--glass-border);
+}
+
+.perf-file {
   padding: 0 12px;
   border-radius: 22px;
   border: 1px solid var(--glass-border);
@@ -563,7 +828,7 @@ h2 {
     padding: var(--pad-page);
   }
 
-  .today {
+  .screen {
     min-height: calc(100dvh - 2 * var(--pad-page));
   }
 
@@ -628,6 +893,27 @@ h2 {
   .pair {
     display: flex;
     flex-direction: column;
+  }
+
+  .chips {
+    margin: 0;
+    padding: 0;
+    flex-wrap: wrap;
+  }
+
+  .day-list,
+  .envelope-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    align-items: start;
+  }
+
+  .plan {
+    max-width: 520px;
+  }
+
+  .hero-right {
+    align-items: flex-start;
   }
 
   .pair .card {
@@ -742,6 +1028,7 @@ h2 {
   }
 
   .nav-tab {
+    justify-content: flex-start;
     height: 44px;
     padding: 0 16px;
     border-radius: 22px;
