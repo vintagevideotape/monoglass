@@ -1,0 +1,38 @@
+/* Токены дизайн-системы «Лавовая лампа», v0. Источник: claude/monoglass-design-system.md в проекте. */
+:root {
+  --bg: #0a0a0b;
+  --text: #ffffff;
+  --text-muted: #c9cbcf;
+  --accent: #ff4a1c;
+  --on-accent: #0a0a0b;
+
+  --glass-fill: rgba(14, 14, 16, 0.5);
+  --glass-fill-flat: rgba(14, 14, 16, 0.84);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  --glass-blur: 18px;
+  --divider: rgba(255, 255, 255, 0.16);
+  --outline: rgba(255, 255, 255, 0.4);
+
+  --font-display: 'Unbounded', system-ui, sans-serif;
+  --font-text: 'Golos Text', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --radius-panel: 20px;
+  --gap: 10px;
+  --pad-page: 20px;
+  --pad-panel: 16px;
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --lava-amp: 1;
+}
+
+@media (min-width: 960px) {
+  :root {
+    --glass-blur: 24px;
+    --gap: 12px;
+    --pad-page: 24px;
+    --pad-panel: 20px;
+    --lava-amp: 2;
+  }
+}

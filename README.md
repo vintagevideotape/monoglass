@@ -1,0 +1,20 @@
+# MonoGlass
+
+Личный трекер финансов: PWA для iPhone и Mac. Дизайн-система «Лавовая лампа».
+
+Сейчас в репозитории — живой прототип экрана «Сегодня» на условных данных (`src/data/mock.ts`).
+В правом верхнем углу — счётчик кадров и переключатели капель и размытия для проверки плавности.
+
+## Команды
+
+- `npm install` — зависимости
+- `npm run dev` — локальный запуск
+- `npm run build` — сборка в `dist/`
+- `npx vite build --mode single` — всё в один `dist-single/index.html`
+
+## Структура
+
+- `src/styles/tokens.css` — токены дизайн-системы
+- `src/styles/app.css` — стили экрана, телефон и широкий экран
+- `src/components/` — `Today`, `Nav`, `Lava`, `PerfPanel`
+- `src/data/mock.ts` — условные данные
