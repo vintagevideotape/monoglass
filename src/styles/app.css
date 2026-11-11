@@ -803,6 +803,11 @@ a.nav-add {
   border-top: 1px solid var(--divider);
 }
 
+.data-form-flat {
+  padding-top: 0;
+  border-top: 0;
+}
+
 .data-recurring {
   display: flex;
   flex-direction: column;

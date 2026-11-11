@@ -50,10 +50,12 @@ function Commit({ label, value, onCommit, numeric, narrow }: { label: string; va
 function SyncCard({ cloud, onError }: { cloud: Cloud; onError: (text: string | null) => void }) {
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
+  const [token, setToken] = useState('')
+  const [editing, setEditing] = useState(false)
   const { sync } = cloud
   const cards = cloud.accounts.filter((account) => account.source === 'mono' && !account.archived)
   const status = !sync.hasToken
-    ? 'Токен Monobank не задан'
+    ? 'Не подключён'
     : sync.accountsAt === 0
       ? 'Ждёт первого запроса к банку'
       : sync.jobs.pending > 0
@@ -74,6 +76,20 @@ function SyncCard({ cloud, onError }: { cloud: Cloud; onError: (text: string | n
     }
   }
 
+  const connect = async () => {
+    setBusy(true)
+    try {
+      await cloud.connectMono(token.trim())
+      setToken('')
+      setEditing(false)
+      onError(null)
+    } catch (failure) {
+      onError(message(failure))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <section className="card glass">
       <div className="card-head label">
@@ -82,6 +98,29 @@ function SyncCard({ cloud, onError }: { cloud: Cloud; onError: (text: string | n
       </div>
       <p className="muted data-status">{status}</p>
       {sync.error !== '' && <p className="notice">{sync.error}</p>}
+      {(!sync.hasToken || editing) && (
+        <div className="data-form data-form-flat">
+          <label className="field">
+            <span className="label">Личный токен Monobank</span>
+            <input type="password" autoComplete="off" spellCheck={false} value={token} onChange={(event) => setToken(event.target.value)} />
+          </label>
+          <p className="muted data-status">Токен берётся на api.monobank.ua и даёт только чтение выписки. Он проверяется запросом к банку, хранится зашифрованным за вашим профилем и обратно не показывается.</p>
+          <button type="button" className="pill pill-wide pill-accent" disabled={busy || token.trim().length < 20} onClick={connect}>
+            {busy ? 'Проверяю…' : 'Подключить'}
+          </button>
+        </div>
+      )}
+      {sync.hasToken && !editing && (
+        <div className="data-actions">
+          <span className="data-state">Токен подключён{sync.tokenAt > 0 ? ` ${stamp(sync.tokenAt)}` : ''}</span>
+          <button type="button" className="label link" onClick={() => setEditing(true)}>
+            заменить
+          </button>
+          <button type="button" className="label link" onClick={() => cloud.disconnectMono().catch((failure) => onError(message(failure)))}>
+            отключить
+          </button>
+        </div>
+      )}
       <ul className="data-list">
         {cards.map((account) => (
           <li className="data-row" key={account.id}>
@@ -97,7 +136,7 @@ function SyncCard({ cloud, onError }: { cloud: Cloud; onError: (text: string | n
             </button>
           </li>
         ))}
-        {cards.length === 0 && <li className="muted">Счета появятся после первого запроса к банку</li>}
+        {cards.length === 0 && sync.hasToken && <li className="muted">Счета появятся после первого запроса к банку</li>}
       </ul>
       <div className="data-actions">
         <button type="button" className="pill pill-wide" disabled={busy || !sync.hasToken} onClick={run}>

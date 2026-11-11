@@ -40,13 +40,13 @@
 ```
 npm install
 npx wrangler login
-npm run deploy            # сборка, воркер и база D1 (создаётся сама при первом запуске)
-npm run db:migrate        # таблицы
-npx wrangler secret put MONO_TOKEN
+npm run db:migrate        # таблицы в базе monoglass (она уже создана, её ID записан в wrangler.jsonc)
+npm run deploy            # сборка и воркер
+npm run setup:key         # случайный ключ шифрования токенов; на экран не выводится
 ```
 
 Затем в панели Cloudflare: Workers & Pages → monoglass → Settings → Domains & Routes → workers.dev → Enable Cloudflare Access.
-В появившемся окне будут два значения — их тоже кладём секретами:
+В появившемся окне будут два значения — их кладём секретами:
 
 ```
 npx wrangler secret put TEAM_DOMAIN    # https://<команда>.cloudflareaccess.com
@@ -55,11 +55,14 @@ npx wrangler secret put POLICY_AUD
 
 Пока `TEAM_DOMAIN` и `POLICY_AUD` не заданы, API не отвечает никому. Первый вошедший становится владельцем.
 
+Токен Monobank вводится в самом приложении: «Данные и ввод» → Monobank. Он проверяется запросом к банку, шифруется ключом `TOKEN_KEY`
+и хранится за профилем того, кто его ввёл; обратно не показывается. Если `TOKEN_KEY` сменить, токен нужно ввести заново.
+
 ### Локальная проверка
 
 ```
 node scripts/mock-mono.mjs          # подставной банк с выдуманными данными
 npm run db:migrate:local
-npm run build && npm run dev:api    # воркер на :8787; .dev.vars: DEV_EMAIL, MONO_TOKEN=test-token, MONO_BASE=http://127.0.0.1:8799, MONO_GAP=0
+npm run build && npm run dev:api    # воркер на :8787; .dev.vars: DEV_EMAIL, TOKEN_KEY, MONO_BASE=http://127.0.0.1:8799, MONO_GAP=0
 npm run e2e                         # перенос таблицы, загрузка истории, сверка
 ```

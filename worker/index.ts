@@ -2,7 +2,8 @@ import { matchLegacy } from '../src/domain/match'
 import { ownerOf } from './auth'
 import { chunks, getState, HttpError, json } from './env'
 import type { Env } from './env'
-import { tick } from './sync'
+import { seal } from './crypto'
+import { refreshAccounts, tick } from './sync'
 
 const KINDS = new Set(['expense', 'refund', 'income', 'personIncoming', 'support', 'cashTopUp', 'jar', 'transfer', 'project'])
 const SETTINGS = new Set(['plans', 'income', 'counterparties', 'categoryRules', 'apple'])
@@ -64,6 +65,7 @@ async function state(env: Env, owner: { id: string; email: string }, url: URL): 
   const db = env.DB
   await seed(db, owner.id)
   const since = Number(url.searchParams.get('since') ?? 0) || 0
+  const profile = await db.prepare('SELECT mono_token IS NOT NULL AS has, mono_token_at AS at FROM profiles WHERE id = ?').bind(owner.id).first<{ has: number; at: number | null }>()
   const [accounts, jars, recurring, settings, service, jobs, ops] = await db.batch([
     db.prepare('SELECT id, source, name, type, currency, balance, credit_limit, opening_balance, opened_at, masked_pan, sync, synced_to, checked_at, archived FROM accounts WHERE owner = ? ORDER BY source DESC, name').bind(owner.id),
     db.prepare('SELECT id, title, currency, balance, goal FROM jars WHERE owner = ? ORDER BY title').bind(owner.id),
@@ -88,7 +90,8 @@ async function state(env: Env, owner: { id: string; email: string }, url: URL): 
     ops: ops.results,
     fx: svc.fx ? JSON.parse(svc.fx) : null,
     sync: {
-      hasToken: Boolean(env.MONO_TOKEN),
+      hasToken: profile?.has === 1 || Boolean(env.MONO_TOKEN),
+      tokenAt: profile?.at ?? 0,
       requestAt: Number(svc['mono.request_at'] ?? 0),
       okAt: Number(svc['mono.ok_at'] ?? 0),
       accountsAt: Number(svc['mono.client_info_at'] ?? 0),
@@ -315,6 +318,23 @@ async function putRecurring(db: D1Database, owner: string, id: string, data: Bod
   return json({ id })
 }
 
+/**
+ * Подключение Monobank: токен проверяется запросом к банку и только после этого сохраняется — зашифрованным,
+ * за профилем того, кто его ввёл. Обратно токен не отдаётся никогда.
+ */
+async function connectMono(env: Env, owner: string, data: Body): Promise<Response> {
+  const token = text(data.token, 200).trim()
+  if (!/^[\w-]{20,200}$/.test(token)) throw new HttpError(400, 'Это не похоже на токен Monobank')
+  const sealed = await seal(env, owner, token)
+  const now = Math.floor(Date.now() / 1000)
+  const last = Number((await getState(env.DB, owner, 'mono.request_at')) ?? 0)
+  if (!env.MONO_BASE && now - last < 61) throw new HttpError(429, `Банк разрешает один запрос в минуту. Повторите через ${61 - (now - last)} с`)
+  const result = await refreshAccounts(env, owner, token, now)
+  if (result.status !== 200) throw new HttpError(result.status === 429 ? 429 : 400, result.detail)
+  await env.DB.prepare('UPDATE profiles SET mono_token = ?, mono_token_at = ? WHERE id = ?').bind(sealed, now, owner).run()
+  return json({ ok: true, detail: result.detail })
+}
+
 async function api(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url)
   const path = url.pathname.replace(/^\/api/, '')
@@ -326,6 +346,11 @@ async function api(request: Request, env: Env): Promise<Response> {
   if (method === 'GET' && path === '/state') return state(env, owner, url)
   if (method === 'GET' && path === '/legacy/report') return legacyReport(db, owner.id)
   if (method === 'POST' && path === '/legacy/import') return importLegacy(db, owner.id, await body(request))
+  if (method === 'PUT' && path === '/mono/token') return connectMono(env, owner.id, await body(request))
+  if (method === 'DELETE' && path === '/mono/token') {
+    await db.prepare('UPDATE profiles SET mono_token = NULL, mono_token_at = NULL WHERE id = ?').bind(owner.id).run()
+    return json({ ok: true })
+  }
   if (method === 'POST' && path === '/sync/now') return json(await tick(env, owner.id))
   if (method === 'POST' && path === '/ops') return createOp(db, owner.id, await body(request))
   if (method === 'POST' && path === '/accounts') return createAccount(db, owner.id, await body(request))
@@ -368,13 +393,13 @@ export default {
     }
   },
 
-  /** Фоновая синхронизация: работает без открытого приложения. Токен принадлежит первому профилю — владельцу. */
+  /** Фоновая синхронизация: работает без открытого приложения. У каждого профиля свой токен и свой лимит банка. */
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(
       (async () => {
         try {
-          const owner = await env.DB.prepare('SELECT id FROM profiles ORDER BY created_at LIMIT 1').first<{ id: string }>()
-          if (owner) await tick(env, owner.id)
+          const profiles = await env.DB.prepare(env.MONO_TOKEN ? 'SELECT id FROM profiles ORDER BY created_at' : 'SELECT id FROM profiles WHERE mono_token IS NOT NULL ORDER BY created_at').all<{ id: string }>()
+          for (const profile of profiles.results) await tick(env, profile.id)
         } catch (error) {
           console.error('sync failure', error instanceof Error ? error.name : 'unknown')
         }

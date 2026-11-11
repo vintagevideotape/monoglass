@@ -46,6 +46,8 @@ export type Cloud = {
   error: string | null
   refresh: () => Promise<void>
   syncNow: () => Promise<string>
+  connectMono: (token: string) => Promise<void>
+  disconnectMono: () => Promise<void>
   importLegacy: (text: string, onProgress: (done: number, total: number) => void) => Promise<LegacyReport>
   legacyReport: () => Promise<LegacyReport>
   addOp: (op: { account_id: string; amount: Kopecks; description: string; kind?: string; category?: string; recurring_id?: string; period?: string; at?: number }) => Promise<void>
@@ -150,6 +152,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const result = await api<{ detail: string }>('POST', '/sync/now')
           await refresh()
           return result.detail
+        },
+        connectMono: async (token) => {
+          await api('PUT', '/mono/token', { token })
+          await refresh()
+        },
+        disconnectMono: async () => {
+          await api('DELETE', '/mono/token')
+          await refresh()
         },
         importLegacy: async (text, onProgress) => {
           const parsed = legacyRows(text)

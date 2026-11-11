@@ -1,6 +1,7 @@
 import { matchLegacy } from '../src/domain/match'
 import { accountName, itemToFields, MAX_WINDOW, PAGE_SIZE, statementWindows, UAH } from '../src/domain/monoApi'
 import type { MonoClientInfo, MonoOpFields, MonoStatementItem } from '../src/domain/monoApi'
+import { open } from './crypto'
 import { chunks, getState, setState } from './env'
 import type { Env } from './env'
 
@@ -18,16 +19,23 @@ export type TickResult = { action: 'idle' | 'wait' | 'accounts' | 'history' | 'u
 type AccountLite = { id: string; currency: number; synced_to: number; checked_at: number }
 type Job = { id: number; account_id: string; from_ts: number; to_ts: number; attempts: number }
 
-async function monoGet<T>(env: Env, path: string): Promise<{ status: number; data: T | null }> {
+/** Токен профиля: введённый в приложении и расшифрованный; при локальном запуске — из переменной. */
+export async function tokenOf(env: Env, owner: string): Promise<string | null> {
+  const row = await env.DB.prepare('SELECT mono_token FROM profiles WHERE id = ?').bind(owner).first<{ mono_token: string | null }>()
+  if (row?.mono_token) return open(env, owner, row.mono_token)
+  return env.MONO_TOKEN ?? null
+}
+
+async function monoGet<T>(env: Env, token: string, path: string): Promise<{ status: number; data: T | null }> {
   const base = env.MONO_BASE ?? 'https://api.monobank.ua'
-  const response = await fetch(`${base}${path}`, { headers: { 'X-Token': env.MONO_TOKEN ?? '' } })
+  const response = await fetch(`${base}${path}`, { headers: { 'X-Token': token } })
   if (!response.ok) return { status: response.status, data: null }
   return { status: 200, data: (await response.json()) as T }
 }
 
 function problem(status: number): string {
   if (status === 429) return 'Банк просит подождать: слишком частые запросы'
-  if (status === 401 || status === 403) return 'Банк не принял токен: проверьте секрет MONO_TOKEN'
+  if (status === 401 || status === 403) return 'Банк не принял токен: введите его заново'
   return `Банк ответил ошибкой ${status}`
 }
 
@@ -124,10 +132,12 @@ export async function ingest(db: D1Database, owner: string, accountId: string, c
   return changed
 }
 
-async function refreshAccounts(env: Env, owner: string, now: number): Promise<TickResult> {
+/** Сохраняет счета и банки из ответа банка. */
+export async function refreshAccounts(env: Env, owner: string, token: string, now: number): Promise<TickResult & { status: number }> {
   const db = env.DB
-  const { status, data } = await monoGet<MonoClientInfo>(env, '/personal/client-info')
-  if (!data) return fail(db, owner, now, problem(status))
+  await setState(db, owner, 'mono.request_at', String(now)).run()
+  const { status, data } = await monoGet<MonoClientInfo>(env, token, '/personal/client-info')
+  if (!data) return { ...(await fail(db, owner, now, problem(status))), status }
   const ms = now * 1000
   const statements: D1PreparedStatement[] = []
   for (const account of data.accounts ?? []) {
@@ -154,11 +164,11 @@ async function refreshAccounts(env: Env, owner: string, now: number): Promise<Ti
   }
   statements.push(setState(db, owner, 'mono.client_info_at', String(now)), setState(db, owner, 'mono.error', ''))
   await db.batch(statements)
-  return { action: 'accounts', detail: `Счета обновлены: ${data.accounts?.length ?? 0}` }
+  return { action: 'accounts', detail: `Счета обновлены: ${data.accounts?.length ?? 0}`, status: 200 }
 }
 
-async function fetchWindow(env: Env, owner: string, account: AccountLite, from: number, to: number, nowMs: number) {
-  const { status, data } = await monoGet<MonoStatementItem[]>(env, `/personal/statement/${encodeURIComponent(account.id)}/${from}/${to}`)
+async function fetchWindow(env: Env, token: string, owner: string, account: AccountLite, from: number, to: number, nowMs: number) {
+  const { status, data } = await monoGet<MonoStatementItem[]>(env, token, `/personal/statement/${encodeURIComponent(account.id)}/${from}/${to}`)
   if (!data) return { status, changed: 0, more: null as number | null, newest: null as MonoStatementItem | null }
   const changed = await ingest(env.DB, owner, account.id, account.currency, data, nowMs)
   let more: number | null = null
@@ -170,14 +180,14 @@ async function fetchWindow(env: Env, owner: string, account: AccountLite, from: 
   return { status, changed, more, newest }
 }
 
-async function runJob(env: Env, owner: string, job: Job, now: number): Promise<TickResult> {
+async function runJob(env: Env, token: string, owner: string, job: Job, now: number): Promise<TickResult> {
   const db = env.DB
   const account = await db.prepare('SELECT id, currency, synced_to, checked_at FROM accounts WHERE owner = ? AND id = ?').bind(owner, job.account_id).first<AccountLite>()
   if (!account) {
     await db.prepare("UPDATE sync_jobs SET status = 'failed', error = 'Счёт не найден', done_at = ? WHERE id = ?").bind(now, job.id).run()
     return { action: 'error', detail: 'Счёт не найден' }
   }
-  const result = await fetchWindow(env, owner, account, job.from_ts, job.to_ts, now * 1000)
+  const result = await fetchWindow(env, token, owner, account, job.from_ts, job.to_ts, now * 1000)
   if (result.status !== 200) {
     if (result.status !== 429) {
       const attempts = job.attempts + 1
@@ -196,10 +206,10 @@ async function runJob(env: Env, owner: string, job: Job, now: number): Promise<T
   return { action: 'history', detail: 'Загружено окно истории', changed: result.changed }
 }
 
-async function update(env: Env, owner: string, account: AccountLite, now: number): Promise<TickResult> {
+async function update(env: Env, token: string, owner: string, account: AccountLite, now: number): Promise<TickResult> {
   const db = env.DB
   const from = Math.max(account.synced_to - OVERLAP, now - MAX_WINDOW + 3600)
-  const result = await fetchWindow(env, owner, account, from, now, now * 1000)
+  const result = await fetchWindow(env, token, owner, account, from, now, now * 1000)
   if (result.status !== 200) {
     await db.prepare('UPDATE accounts SET checked_at = ? WHERE owner = ? AND id = ?').bind(now, owner, account.id).run()
     return fail(db, owner, now, problem(result.status))
@@ -242,7 +252,8 @@ export async function tick(env: Env, owner: string, nowMs = Date.now()): Promise
   const db = env.DB
   const now = Math.floor(nowMs / 1000)
   await refreshFx(db, owner, now)
-  if (!env.MONO_TOKEN) return { action: 'idle', detail: 'Токен Monobank не задан' }
+  const token = await tokenOf(env, owner)
+  if (!token) return { action: 'idle', detail: 'Токен Monobank не подключён' }
 
   const last = Number((await getState(db, owner, 'mono.request_at')) ?? 0)
   // Паузу можно сократить только вместе с подставным банком при локальной проверке.
@@ -252,21 +263,21 @@ export async function tick(env: Env, owner: string, nowMs = Date.now()): Promise
 
   try {
     const infoAt = Number((await getState(db, owner, 'mono.client_info_at')) ?? 0)
-    if (now - infoAt > CLIENT_INFO_EVERY) return await refreshAccounts(env, owner, now)
+    if (now - infoAt > CLIENT_INFO_EVERY) return await refreshAccounts(env, owner, token, now)
 
     const days = Math.max(31, Number(env.BACKFILL_DAYS ?? 400) || 400)
     const fresh = await db.prepare("SELECT id FROM accounts WHERE owner = ? AND source = 'mono' AND sync = 1 AND backfill_queued = 0 AND archived = 0").bind(owner).all<{ id: string }>()
     for (const account of fresh.results) await db.batch(backfillStatements(db, owner, account.id, now, days))
 
     const job = await db.prepare("SELECT id, account_id, from_ts, to_ts, attempts FROM sync_jobs WHERE owner = ? AND status = 'pending' ORDER BY to_ts DESC, id LIMIT 1").bind(owner).first<Job>()
-    if (job) return await runJob(env, owner, job, now)
+    if (job) return await runJob(env, token, owner, job, now)
 
     const account = await db
       .prepare("SELECT id, currency, synced_to, checked_at FROM accounts WHERE owner = ? AND source = 'mono' AND sync = 1 AND archived = 0 ORDER BY checked_at LIMIT 1")
       .bind(owner)
       .first<AccountLite>()
     if (!account) return { action: 'idle', detail: 'Нет счетов для синхронизации' }
-    return await update(env, owner, account, now)
+    return await update(env, token, owner, account, now)
   } catch (error) {
     return fail(db, owner, now, error instanceof Error ? `Сбой синхронизации: ${error.message}` : 'Сбой синхронизации')
   }

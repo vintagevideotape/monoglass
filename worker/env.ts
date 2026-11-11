@@ -1,7 +1,9 @@
 export type Env = {
   DB: D1Database
   ASSETS: Fetcher
-  /** Личный токен Monobank: только чтение выписки. */
+  /** Секрет, которым шифруются токены Monobank в базе. */
+  TOKEN_KEY?: string
+  /** Только для локального запуска: токен без ввода в приложении. */
   MONO_TOKEN?: string
   /** Cloudflare Access: https://<команда>.cloudflareaccess.com и AUD приложения. */
   TEAM_DOMAIN?: string

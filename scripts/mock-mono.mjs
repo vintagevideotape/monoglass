@@ -81,7 +81,7 @@ createServer((req, res) => {
   }
   if (url.pathname === '/legacy.csv') return res.writeHead(200, { 'content-type': 'text/csv' }).end(legacyCsv())
   if (url.pathname === '/stats') return send(200, { ...stats, total: ACCOUNTS.reduce((t, a) => t + a.items.length, 0), settled: ACCOUNTS.reduce((t, a) => t + a.items.filter((i) => !i.hold).length, 0) })
-  if (req.headers['x-token'] !== 'test-token') return send(403, { errorDescription: 'Unknown X-Token' })
+  if (req.headers['x-token'] !== 'test-token-test-token-test') return send(403, { errorDescription: 'Unknown X-Token' })
   stats.requests += 1
   if (url.pathname === '/personal/client-info') {
     return send(200, { name: 'Тест', accounts: ACCOUNTS.map(({ items, ...account }) => account), jars: [{ id: 'jar-1', title: 'На ціль', currencyCode: 980, balance: 1_500_000, goal: 5_000_000 }] })

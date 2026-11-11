@@ -5,6 +5,7 @@ export type Jar = { id: string; title: string; currency: number; balance: number
 
 export type SyncStatus = {
   hasToken: boolean
+  tokenAt: number
   requestAt: number
   okAt: number
   accountsAt: number

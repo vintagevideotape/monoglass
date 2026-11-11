@@ -31,6 +31,16 @@ const rows = legacyRows(await (await fetch(`${MOCK}/legacy.csv`)).text())
 const sheetOnly = rows.filter((row) => row.id.startsWith('only-sheet')).length
 console.log(`банк: ${stats.total} операций (${stats.settled} без блокировок), таблица: ${rows.length} строк, из них ${sheetOnly} только в таблице`)
 
+// 0. Токен вводится в приложении: неверный отклоняется, верный сохраняется и наружу не отдаётся.
+const before = await call('GET', '/state')
+check('до ввода токена синхронизация выключена', before.sync.hasToken === false && (await call('POST', '/sync/now')).action === 'idle')
+const bad = await fetch(`${API}/api/mono/token`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: 'wrong-token-wrong-token-wrong' }) })
+check('неверный токен отклонён и не сохранён', bad.status === 400 && (await call('GET', '/state')).sync.hasToken === false)
+await call('PUT', '/mono/token', { token: 'test-token-test-token-test' })
+const after = await call('GET', '/state')
+check('верный токен подключён, счета получены сразу', after.sync.hasToken === true && after.accounts.some((a: any) => a.source === 'mono'))
+check('токен не возвращается приложению', !JSON.stringify(after).includes('test-token'))
+
 // 1. Половина таблицы — до загрузки выписки.
 const half = Math.floor(rows.length / 2)
 const first = await importRows(rows.slice(0, half))
